@@ -1,0 +1,538 @@
+from time import sleep
+import logging
+from datetime import datetime, date
+import re
+import time
+import json
+import hashlib
+import os
+import random
+import plotly.graph_objects as go
+import numpy as np
+
+
+USERS_FILE = 'usuarios.json'  
+
+
+def carregar_usuarios():
+    if not os.path.exists(USERS_FILE):
+        print("Arquivo de usuários não encontrado.")
+        return {} 
+
+    with open(USERS_FILE, "r", encoding="utf-8") as f:
+        usuarios = json.load(f)  
+    return usuarios
+
+
+def salvar_usuarios(usuarios):
+    with open(USERS_FILE, "w", encoding="utf-8") as f:
+        json.dump(usuarios, f, ensure_ascii=False, indent=4)       
+
+logging.basicConfig(
+    filename='log_usuarios.txt', 
+    level=logging.INFO,   
+    format='%(asctime)s - %(levelname)s - %(message)s'  
+)
+def registrar_log(mensagem):
+    logging.info(mensagem)
+USERS_FILE = "usuarios.json"
+def carregar_usuarios():
+    if os.path.exists(USERS_FILE):
+        with open(USERS_FILE, "r") as f:
+            return json.load(f)
+    return {}
+def salvar_usuarios(usuarios):
+    with open(USERS_FILE, "w") as f:
+        json.dump(usuarios, f, indent=4)
+    print("Usuários salvos com sucesso.")
+def hash_senha(senha):
+    return hashlib.sha256(senha.encode()).hexdigest()
+
+def validar_email(email):
+    return re.match(r"[^@]+@[^@]+\.[^@]+", email)
+
+def calcular_idade(data_nasc_str):
+    try:
+        data_nasc = datetime.strptime(data_nasc_str, "%d/%m/%Y").date()
+        hoje = date.today()
+        idade = hoje.year - data_nasc.year - ((hoje.month, hoje.day) < (data_nasc.month, data_nasc.day))
+        return idade
+    except ValueError:
+        return None
+def cadastrar_usuario():
+    usuarios = carregar_usuarios()
+    nome = input("Nome: ")
+    email = input("Digite o email do usuário: ").strip().lower()
+    if email in usuarios:
+        print("Usuário já existe!")
+        sleep(1)
+        return
+    if not validar_email(email):
+        print("Email inválido.")
+        sleep(1)
+        return
+    data_nasc_str = input("Data de nascimento (dd/mm/aaaa): ")
+    idade = calcular_idade(data_nasc_str)
+    if idade is None:
+        print("Data de nascimento inválida.")
+        sleep(1)
+        return
+    print(f"Idade detectada: {idade} anos")
+    sleep(1)
+
+    senha = input("Senha (mínimo 6 caracteres, com letra e número): ")
+    if len(senha) < 6 or not any(c.isalpha() for c in senha) or not any(c.isdigit() for c in senha):
+        print("Senha fraca. Use pelo menos 6 caracteres com letras e números.")
+        sleep(1)
+        return
+
+    materias_disponiveis = {
+        "1": "Tecnologia da Informação",
+        "2": "Programação Básica",
+        "3": "Cibersegurança",
+        "4": "Ética, Cidadania e Sustentabilidade",
+        "5": "Direitos Humanos",
+        "6": "Infraestrutura Computacional",
+        "7": "Lei Geral de Proteção de Dados (LGPD)"
+    }
+
+    print("\nEscolha sua matéria favorita:")
+    for k, v in materias_disponiveis.items():
+        print(f"{k}. {v}")
+
+    escolha = input("Digite o número correspondente à matéria: ").strip()
+    materia_favorita = materias_disponiveis.get(escolha)
+
+    if not materia_favorita:
+        print("Opção inválida. A matéria favorita será registrada como 'Desconhecida'.")
+        materia_favorita = "Desconhecida"
+
+    usuarios[email] = {
+        "nome": nome,
+        "senha": hash_senha(senha),
+        "acessos": 0,
+        "pontuacao": [],
+        "nivel": 1,
+        "feedback": [],
+        "conquistas": [],
+        "data_nascimento": data_nasc_str,
+        "idade": idade,
+        "codigo_confirmacao": "", 
+        "materia_favorita": materia_favorita 
+    }
+
+    salvar_usuarios(usuarios)
+    print("Usuário cadastrado com sucesso!")
+    sleep(1)
+    registrar_log(f"Usuário '{email}' cadastrado com sucesso.")
+    sleep(1)
+def login():
+    usuarios = carregar_usuarios()
+    email = input("Email: ")
+    senha = input("Senha: ")
+
+    if email in usuarios and usuarios[email]["senha"] == hash_senha(senha):
+        print(f"Bem-vindo, {usuarios[email]['nome']}!")
+        usuarios[email]["acessos"] += 1
+        salvar_usuarios(usuarios)
+        
+        if mostrar_termos_seguranca(email):
+            menu_usuario(email)
+    else:
+        print("Email ou senha incorretos.")
+        registrar_log(f"Tentativa de login falhou: Email '{email}' ou senha incorretos.")
+
+def mostrar_termos_seguranca(email):
+    termos = """
+    ****************
+                    TERMOS DE SEGURANÇA
+    ****************
+    
+    1. Nunca clique em links suspeitos recebidos por e-mail ou mensagens de texto.
+    2. Sempre verifique a autenticidade do remetente antes de fornecer informações pessoais.
+    3. Proteja seus dados: não compartilhe senhas ou informações sensíveis.
+    4. Caso receba solicitações suspeitas, entre em contato com o suporte oficial.
+    5. Nossa plataforma segue as diretrizes da Lei Geral de Proteção de Dados (LGPD) para garantir sua segurança.
+    
+    Meios de contato do suporte:
+       - E-mail: suporte@plataformaeducacional.com
+       - Telefone: (44) 99108-7806
+    
+    ****************
+    """
+    print(termos)
+    resposta = input("Você concorda com os termos de segurança? (Sim/Não): ").strip().lower()
+    if resposta == "sim":
+        codigo = str(random.randint(100000, 999999))
+        usuarios = carregar_usuarios()
+        usuarios[email]["codigo_confirmacao"] = codigo
+        salvar_usuarios(usuarios)
+        print(f"\nSeu código de confirmação é: {codigo}")
+        print("Anote e guarde este código para acessar ou alterar seus dados cadastrais futuramente.")
+        sleep(2)
+        return True
+    elif resposta == "não":
+        print("Você não concordou com os termos de segurança. Acesso negado.")
+        return False
+    else:
+        print("Resposta inválida. Por favor, digite 'Sim' ou 'Não'.")
+        return mostrar_termos_seguranca(email)
+def menu_usuario(email):
+    usuarios = carregar_usuarios()
+
+    while True:
+        print(f"\n--- Menu do Usuário ({email}) ---")
+        print("1. Iniciar módulo de aprendizado")
+        print("2. Enviar feedback")
+        print("3 Ver meus feedbacks enviados")
+        print("4. Ver minhas conquistas")
+        print("5. Ver minha idade e data de nascimento")
+        print("6. Sair para o menu principal")
+
+        escolha = input("Escolha uma opção: ")
+
+        if escolha == "1":
+            ambiente_aprendizado(email)
+        elif escolha == "2":
+            enviar_feedback(email)
+        elif escolha == "3":
+            usuarios = carregar_usuarios()
+            feedbacks = usuarios[email].get("feedback", [])
+            if feedbacks:
+                print(f"\nSeus feedbacks ({email}):")
+                for i, fb in enumerate(feedbacks, 1):
+                    print(f"{i}. {fb}")
+            else:
+                print("Você ainda não enviou feedbacks.")
+        elif escolha == "4":
+            conquistas = usuarios[email].get("conquistas", [])
+            if conquistas:
+                print("\nSuas conquistas:")
+                for c in conquistas:
+                    print(f"- {c}")
+            else:
+                print("Você ainda não conquistou nada... continue tentando!")
+        elif escolha == "5":
+            data_nasc = usuarios[email].get("data_nascimento", "Não cadastrada")
+            idade = usuarios[email].get("idade", "Desconhecida")
+            print(f"\nData de nascimento: {data_nasc}")
+            print(f"Idade: {idade} anos")
+        elif escolha == "6":
+            print("Retornando ao menu principal...")
+            salvar_usuarios(usuarios)
+            break
+        else:
+            print("Opção inválida. Tente novamente.")
+
+def ambiente_aprendizado(email):
+    email = email.strip().lower()
+    print("\nBem-vindo ao Módulo de Aprendizado!\n")
+    sleep(1)
+    
+    textos = {
+        "Tecnologia da Informação": ("""A Tecnologia da Informação (TI) é uma área essencial que envolve o uso de computadores, softwares, redes e sistemas para coletar, armazenar, processar e transmitir dados. Ela está presente em praticamente todos os setores da sociedade moderna, desde empresas e instituições públicas até ambientes domésticos. A TI possibilita a automação de processos, o gerenciamento eficiente de informações e a comunicação instantânea entre pessoas e sistemas em qualquer lugar do mundo.
+Com o avanço da transformação digital, a TI se tornou indispensável para a inovação e competitividade das organizações. Ela viabiliza soluções como computação em nuvem, inteligência artificial, big data, internet das coisas (IoT) e muito mais. Profissionais da área atuam em diversas funções, como desenvolvimento de software, análise de sistemas, suporte técnico, administração de redes, segurança da informação, entre outras. Investir em TI é investir em eficiência, inovação e crescimento sustentável."""
+        ),
+        "Programação Básica": ("""A programação é a arte de escrever instruções que um computador pode entender e executar. Essas instruções são escritas por meio de linguagens de programação, como Python, Java, JavaScript, C++ e muitas outras. Ela permite criar desde simples scripts para automatizar tarefas do dia a dia até sistemas complexos como redes sociais, jogos, bancos digitais e aplicativos de inteligência artificial.
+Aprender a programar desenvolve o raciocínio lógico, a resolução de problemas e a criatividade. É como aprender uma nova linguagem que, em vez de conversar com pessoas, conversa com máquinas.
+Com a crescente digitalização da sociedade, a programação se tornou uma habilidade fundamental no mercado de trabalho. Mesmo quem não deseja ser um programador profissional pode se beneficiar ao entender como os sistemas funcionam e como podem ser otimizados. Hoje, há ferramentas e cursos acessíveis que facilitam o aprendizado, tornando a programação uma área democrática e cheia de oportunidades."""
+        ),
+        "Cibersegurança": ("""Cibersegurança, ou segurança da informação, é o conjunto de práticas e tecnologias voltadas para proteger sistemas, redes, programas e dados contra acessos não autorizados, ataques cibernéticos e danos. Em um mundo cada vez mais conectado, onde dados pessoais, bancários e empresariais são armazenados digitalmente, a proteção dessas informações se tornou uma prioridade.
+Entre as ameaças mais comuns estão os malwares (vírus, trojans, ransomwares), phishing (fraudes por e-mail ou mensagens), ataques de negação de serviço (DDoS) e invasões a sistemas mal configurados. Para se proteger, é importante utilizar senhas fortes, autenticação multifatorial, criptografia, antivírus atualizados e firewalls, além de manter bons hábitos de navegação.
+A cibersegurança não é responsabilidade apenas de especialistas: todos os usuários da internet devem estar conscientes sobre os riscos e práticas seguras. Empresas investem em profissionais de segurança da informação para garantir a integridade dos seus dados e a confiança dos seus clientes. Quanto mais conectado o mundo fica, mais vital se torna a proteção digital."""
+        ),
+        "Ética, Cidadania e Sustentabilidade": ("""A ética, cidadania e sustentabilidade no mundo digital são princípios fundamentais para garantir um ambiente virtual seguro, justo e responsável. A ética digital envolve o respeito às normas de convivência online, como não disseminar fake news, não praticar cyberbullying e respeitar a privacidade alheia.
+Já a cidadania digital refere-se ao uso consciente e responsável da tecnologia, participando ativamente da sociedade digital, sabendo reivindicar direitos e cumprir deveres. Isso inclui denunciar crimes digitais, respeitar a legislação e contribuir para uma internet mais inclusiva e segura.
+A sustentabilidade digital, por sua vez, está relacionada ao uso equilibrado dos recursos tecnológicos, evitando desperdício e considerando o impacto ambiental da produção e descarte de equipamentos eletrônicos. A combinação desses três pilares permite uma convivência online mais saudável, onde o uso da tecnologia contribui para o bem-estar coletivo e o desenvolvimento sustentável."""
+        ),
+        "Direitos Humanos": ("""Os direitos humanos são universais e inalienáveis, e sua aplicação também se estende ao ambiente digital. No contexto da internet e das tecnologias da informação, é fundamental garantir que todos os indivíduos tenham seus direitos respeitados, como a liberdade de expressão, o direito à privacidade, ao acesso à informação e à segurança.
+A liberdade de expressão online permite que as pessoas compartilhem ideias, opiniões e informações sem medo de censura ou perseguição, desde que respeitando os direitos de outros indivíduos. A privacidade assegura que dados pessoais não sejam coletados ou utilizados sem consentimento.
+O acesso à informação promove a inclusão digital e a igualdade de oportunidades, especialmente para populações marginalizadas. Além disso, é necessário proteger grupos vulneráveis contra crimes como o discurso de ódio, assédio e discriminação online. Proteger os direitos humanos na internet é essencial para garantir uma sociedade digital mais justa, inclusiva e democrática."""
+        ),
+        "Infraestrutura Computacional": ("""A infraestrutura computacional é o alicerce que sustenta todos os sistemas e serviços digitais. Ela abrange uma variedade de componentes físicos e lógicos, como computadores, servidores, roteadores, switches, redes cabeadas e sem fio, sistemas operacionais, armazenamento de dados, e data centers.
+Uma boa infraestrutura garante o funcionamento contínuo e seguro de sistemas corporativos, sites, plataformas de e-commerce, aplicativos e redes sociais. Com o aumento da demanda por serviços em nuvem, videoconferência, inteligência artificial e big data, manter uma infraestrutura robusta e escalável tornou-se essencial.
+A performance (velocidade), a disponibilidade (tempo de funcionamento), a escalabilidade (capacidade de crescer) e a segurança são critérios fundamentais para uma infraestrutura eficiente. Profissionais especializados em infraestrutura atuam com manutenção, monitoramento e atualização constante dos sistemas para evitar falhas e garantir a confiabilidade dos serviços.
+Investir em infraestrutura é investir na continuidade, eficiência e qualidade dos serviços digitais, tanto em pequenas empresas quanto em grandes corporações."""
+        ),
+        "Lei Geral de Proteção de Dados (LGPD)": ("""A Lei Geral de Proteção de Dados Pessoais (LGPD), sancionada em 2018 no Brasil, entrou em vigor com o objetivo de garantir maior controle das pessoas sobre seus dados pessoais. Ela estabelece regras sobre coleta, armazenamento, tratamento e compartilhamento de informações, exigindo que empresas e organizações tratem os dados com responsabilidade, transparência e segurança.
+Dados pessoais são qualquer informação que possa identificar direta ou indiretamente uma pessoa, como nome, CPF, e-mail, localização e hábitos de consumo. A LGPD exige que os titulares (os donos dos dados) sejam informados sobre como suas informações serão utilizadas e que deem consentimento claro para isso.
+A lei também garante direitos, como o acesso aos próprios dados, a correção de informações incorretas, a exclusão de dados e o direito de revogar o consentimento.
+Empresas que não cumprem a LGPD estão sujeitas a advertências, multas e sanções. Mais do que uma obrigação legal, seguir a LGPD demonstra respeito ao cidadão e fortalece a relação de confiança entre clientes e organizações."""
+        )
+    }
+    for tema, conteudo in textos.items():
+        print(f"\n--- {tema} ---\n")
+        print(conteudo)
+        input("\nPressione Enter para continuar para o próximo tema...")
+
+    print("\nVocê concluiu a leitura do Módulo de Aprendizado. Parabéns!")
+    usuarios = carregar_usuarios()
+    if email in usuarios:
+        if "Módulo Informativo Concluído" not in usuarios[email]["conquistas"]:
+            usuarios[email]["conquistas"].append("Módulo Informativo Concluído")
+            print("Conquista desbloqueada: Módulo Informativo Concluído!")
+        salvar_usuarios(usuarios)
+    sleep(2)
+
+def gerar_graficos(usuarios):
+    emails = list(usuarios.keys())
+    acessos = [usuarios[email].get("acessos", 0) for email in emails]
+
+def excluir_todos_os_usuarios():
+    confirmacao = input("Tem certeza que deseja excluir todos os usuários? (s/n): ")
+    if confirmacao.lower() == 's':
+        if os.path.exists(USERS_FILE):
+            os.remove(USERS_FILE)
+            print("Todos os usuários foram excluídos.")
+        else:
+            print("Nenhum arquivo de usuários encontrado.")
+    else:
+        print("Operação cancelada.")
+
+def excluir_usuario():
+    usuarios = carregar_usuarios()
+    email = input("Digite o email do usuário a ser excluído: ")
+    if email in usuarios:
+        confirmacao = input(f"Tem certeza que deseja excluir o usuário {usuarios[email]['nome']}? (s/n): ")
+        if confirmacao.lower() == 's':
+            del usuarios[email]
+            salvar_usuarios(usuarios)
+            print(f"Usuário {email} foi excluído.")
+        else:
+            print("Operação cancelada.")
+    else:
+        print(f"Usuário com o email {email} não encontrado.")
+        registrar_log(f"Tentativa de exclusão falhou: Usuário '{email}' não encontrado.")
+def enviar_feedback(email):
+    usuarios = carregar_usuarios()
+    email = email.strip().lower()
+    if email in usuarios:
+        comentario = input("Digite seu feedback: ")
+        hora = datetime.now().strftime("%d/%m/%Y %H:%M")
+        usuarios[email]["feedback"].append(f"[{hora}] {comentario}")
+        salvar_usuarios(usuarios)
+        print("Feedback enviado com sucesso!")
+        registrar_log(f"Feedback enviado por '{email}'")
+    else:
+        print("Usuário não encontrado.")
+def mostrar_feedbacks():
+    usuarios = carregar_usuarios()
+    print("\n--- Feedbacks dos Usuários ---")
+    encontrou = False  
+
+    for email, dados in usuarios.items():
+        feedbacks = dados.get("feedback", [])
+        if feedbacks:
+            encontrou = True
+            print(f"\nFeedbacks de {dados['nome']} ({email}):")
+            for i, feedback in enumerate(feedbacks, 1):
+                print(f"{i}. {feedback}")
+
+    if not encontrou:
+        print("Nenhum feedback registrado por nenhum usuário.")
+def exportar_feedbacks():
+    usuarios = carregar_usuarios()
+    with open("feedbacks.txt", "w", encoding="utf-8") as f:
+        for email, dados in usuarios.items():
+            if dados["feedback"]:
+                f.write(f"Feedbacks de {dados['nome']} ({email}):\n")
+                for i, feedback in enumerate(dados["feedback"], 1):
+                    f.write(f"{i}. {feedback}\n")
+                f.write("\n")
+    print("Feedbacks exportados para 'feedbacks.txt'.")
+
+def estatisticas_idade():
+    usuarios = carregar_usuarios()
+    faixas = {
+        "12-17": 0,
+        "18-24": 0,
+        "25-34": 0,
+        "35-44": 0,
+        "45+": 0
+    }
+    idades = []
+
+    for dados in usuarios.values():
+        idade = dados.get("idade")
+        if idade is not None:
+            idades.append(idade)
+            if 12 <= idade <= 17:
+                faixas["12-17"] += 1
+            elif 18 <= idade <= 24:
+                faixas["18-24"] += 1
+            elif 25 <= idade <= 34:
+                faixas["25-34"] += 1
+            elif 35 <= idade <= 44:
+                faixas["35-44"] += 1
+            else:
+                faixas["45+"] += 1
+
+    if not idades:
+        print("Nenhuma idade registrada.")
+        return
+
+
+    print("\n--- Estatísticas de Idade dos Usuários ---")
+    print(f"Idade média: {np.mean(idades):.2f}")
+    print(f"Idade mínima: {min(idades)}")
+    print(f"Idade máxima: {max(idades)}")
+    print("\nDistribuição por faixa etária:")
+    for faixa, qtd in faixas.items():
+        print(f"{faixa} anos: {qtd} usuário(s)")
+
+
+    faixa_labels = list(faixas.keys())
+    valores = list(faixas.values())
+    
+    fig = go.Figure(data=[go.Bar(
+        x=faixa_labels,
+        y=valores,
+        marker_color=['#3498db', '#2ecc71', '#f1c40f', '#9b59b6', '#e74c3c']  # cores diferentes para cada faixa etária
+    )])
+
+    fig.update_layout(
+        title="Distribuição de Usuários por Faixa Etária",
+        xaxis_title="Faixa Etária",
+        yaxis_title="Número de Usuários",
+        template="plotly_dark", 
+        showlegend=False
+    )
+
+    fig.show()
+def gerar_grafico_3d():
+    usuarios = carregar_usuarios()
+
+    if not usuarios:
+        print("Nenhum usuário disponível para gerar gráfico.")
+        return
+
+
+    faixa_etaria_map = {
+        "12-17": 0,
+        "18-24": 1,
+        "25-34": 2,
+        "35-44": 3,
+        "45+": 4
+    }
+
+    materia_map = {
+        "Tecnologia da Informação": 0,
+        "Programação Básica": 1,
+        "Cibersegurança": 2,
+        "Ética, Cidadania e Sustentabilidade": 3,
+        "Direitos Humanos": 4,
+        "Infraestrutura Computacional": 5,
+        "Lei Geral de Proteção de Dados (LGPD)": 6
+    }
+
+
+    x_faixa = []  
+    y_acessos = []  
+    z_materia = []  
+    labels = []  
+
+    for email, dados in usuarios.items():
+        idade = dados.get("idade")
+        acessos = dados.get("acessos", 0)
+        materia = dados.get("materia_favorita", "Desconhecida")
+
+        if idade is None or materia not in materia_map:
+            continue
+
+
+        if idade <= 17:
+            faixa = "12-17"
+        elif idade <= 24:
+            faixa = "18-24"
+        elif idade <= 34:
+            faixa = "25-34"
+        elif idade <= 44:
+            faixa = "35-44"
+        else:
+            faixa = "45+"
+
+
+        x_faixa.append(faixa_etaria_map[faixa]) 
+        y_acessos.append(acessos) 
+        z_materia.append(materia_map[materia]) 
+        labels.append(f"{dados['nome']} ({email})<br>Idade: {idade}<br>Acessos: {acessos}<br>Matéria: {materia}")
+
+
+    fig = go.Figure(data=[go.Scatter3d(
+        x=x_faixa,
+        y=y_acessos,
+        z=z_materia,
+        mode='markers',
+        marker=dict(
+            size=8,
+            color=z_materia,  
+            colorscale='Viridis', 
+            opacity=0.9
+        ),
+        text=labels,
+        hoverinfo='text'
+    )])
+
+
+    fig.update_layout(
+        title="Gráfico 3D Interativo: Faixa Etária × Acessos × Matéria Favorita",
+        scene=dict(
+            xaxis=dict(
+                title='Faixa Etária',
+                tickvals=list(faixa_etaria_map.values()),
+                ticktext=list(faixa_etaria_map.keys()),
+                tickangle=45  
+            ),
+            yaxis=dict(
+                title='Número de Acessos',
+                tickvals=list(range(min(y_acessos), max(y_acessos)+1)),  
+            ),
+            zaxis=dict(
+                title='Matéria Favorita',
+                tickvals=list(materia_map.values()),
+                ticktext=list(materia_map.keys()) 
+            )
+        ),
+        margin=dict(l=0, r=0, b=0, t=40),
+        template="plotly_dark"  
+    )
+
+    fig.show()
+def menu_principal():
+    while True:
+        print("\n--- Plataforma de Educação Digital ---")
+        print("1. Cadastrar novo usuário")
+        print("2. Fazer login")
+        print("3. Gerar gráfico 3D (faixa etária, acessos, matéria favorita)")
+        print("4. Excluir todos os usuários")
+        print("5. Excluir usuário específico")
+        print("6. Ver todos os feedbacks")
+        print("7. Exportar feedbacks para TXT")
+        print("8. Ver estatísticas por faixa etária")
+        print("0. Sair")
+        opcao = input("Escolha: ")
+
+        if opcao == "1":
+            cadastrar_usuario()
+        elif opcao == "2":
+            login()
+        elif opcao == "3":
+            gerar_grafico_3d()
+        elif opcao == "4":
+            excluir_todos_os_usuarios()
+        elif opcao == "5":
+            excluir_usuario()
+        elif opcao == "6":
+            mostrar_feedbacks()
+        elif opcao == "7":
+            exportar_feedbacks()
+        elif opcao == "8":
+            estatisticas_idade()
+        elif opcao == "0":
+            print("Saindo...")
+            break
+        else:
+            print("Opção inválida.")
+
+if _name_ == "_main_":
+menu_principal()
